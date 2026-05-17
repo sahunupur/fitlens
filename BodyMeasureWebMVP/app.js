@@ -36,6 +36,10 @@ views.side.ctx = views.side.canvas.getContext("2d");
 
 let pose;
 let pendingPoseResolve;
+const gestureState = {
+  front: { pointers: new Map(), startCrop: null, startCenter: null, startDistance: null },
+  side: { pointers: new Map(), startCrop: null, startCenter: null, startDistance: null }
+};
 
 const landmarkIndex = {
   nose: 0,
@@ -95,6 +99,15 @@ document.querySelectorAll(".crop-reset").forEach((button) => {
   button.addEventListener("click", resetCrop);
 });
 
+Object.keys(views).forEach((viewName) => {
+  const stage = views[viewName].stage;
+  stage.addEventListener("pointerdown", (event) => handlePointerDown(event, viewName));
+  stage.addEventListener("pointermove", (event) => handlePointerMove(event, viewName));
+  stage.addEventListener("pointerup", (event) => handlePointerUp(event, viewName));
+  stage.addEventListener("pointercancel", (event) => handlePointerUp(event, viewName));
+  stage.addEventListener("pointerleave", (event) => handlePointerUp(event, viewName));
+});
+
 document.querySelectorAll("input[name='profile']").forEach((input) => {
   input.addEventListener("change", refreshResultsIfReady);
 });
@@ -142,10 +155,7 @@ function handleCropChange(event) {
   if (!view) return;
 
   view.crop[event.target.dataset.control] = Number(event.target.value);
-  view.landmarks = null;
-  resultsPanel.hidden = true;
-  clearOverlay(viewName);
-  applyCrop(viewName);
+  invalidateAnalysis(viewName);
 }
 
 function resetCrop(event) {
@@ -154,9 +164,92 @@ function resetCrop(event) {
   if (!view) return;
 
   view.crop = { zoom: 1, x: 0, y: 0 };
-  view.landmarks = null;
-  resultsPanel.hidden = true;
   resetCropInputs(viewName);
+  invalidateAnalysis(viewName);
+}
+
+function handlePointerDown(event, viewName) {
+  const view = views[viewName];
+  if (!view.image) return;
+
+  event.preventDefault();
+  view.stage.setPointerCapture(event.pointerId);
+
+  const state = gestureState[viewName];
+  state.pointers.set(event.pointerId, pointerPosition(event));
+  state.startCrop = { ...view.crop };
+  state.startCenter = pointerCenter(state.pointers);
+  state.startDistance = pointerDistance(state.pointers);
+}
+
+function handlePointerMove(event, viewName) {
+  const view = views[viewName];
+  const state = gestureState[viewName];
+  if (!view.image || !state.pointers.has(event.pointerId)) return;
+
+  event.preventDefault();
+  state.pointers.set(event.pointerId, pointerPosition(event));
+
+  const center = pointerCenter(state.pointers);
+  const rect = view.stage.getBoundingClientRect();
+  const dx = ((center.x - state.startCenter.x) / Math.max(1, rect.width)) * 100;
+  const dy = ((center.y - state.startCenter.y) / Math.max(1, rect.height)) * 100;
+  let zoom = state.startCrop.zoom;
+
+  if (state.pointers.size >= 2 && state.startDistance > 0) {
+    zoom = state.startCrop.zoom * (pointerDistance(state.pointers) / state.startDistance);
+  }
+
+  setCrop(viewName, {
+    zoom,
+    x: state.startCrop.x + dx,
+    y: state.startCrop.y + dy
+  });
+}
+
+function handlePointerUp(event, viewName) {
+  const state = gestureState[viewName];
+  state.pointers.delete(event.pointerId);
+
+  if (state.pointers.size > 0) {
+    state.startCrop = { ...views[viewName].crop };
+    state.startCenter = pointerCenter(state.pointers);
+    state.startDistance = pointerDistance(state.pointers);
+  }
+}
+
+function pointerPosition(event) {
+  return { x: event.clientX, y: event.clientY };
+}
+
+function pointerCenter(pointers) {
+  const values = Array.from(pointers.values());
+  return {
+    x: average(values.map((point) => point.x)),
+    y: average(values.map((point) => point.y))
+  };
+}
+
+function pointerDistance(pointers) {
+  const values = Array.from(pointers.values());
+  if (values.length < 2) return 0;
+  return Math.hypot(values[0].x - values[1].x, values[0].y - values[1].y);
+}
+
+function setCrop(viewName, crop) {
+  const view = views[viewName];
+  view.crop = {
+    zoom: clamp(crop.zoom, 1, 3),
+    x: clamp(crop.x, -50, 50),
+    y: clamp(crop.y, -50, 50)
+  };
+  syncCropInputs(viewName);
+  invalidateAnalysis(viewName);
+}
+
+function invalidateAnalysis(viewName) {
+  views[viewName].landmarks = null;
+  resultsPanel.hidden = true;
   clearOverlay(viewName);
   applyCrop(viewName);
 }
@@ -244,6 +337,13 @@ function resetCropInputs(viewName) {
   tools.querySelector("[data-control='zoom']").value = "1";
   tools.querySelector("[data-control='x']").value = "0";
   tools.querySelector("[data-control='y']").value = "0";
+}
+
+function syncCropInputs(viewName) {
+  const tools = views[viewName].cropTools;
+  tools.querySelector("[data-control='zoom']").value = String(views[viewName].crop.zoom);
+  tools.querySelector("[data-control='x']").value = String(views[viewName].crop.x);
+  tools.querySelector("[data-control='y']").value = String(views[viewName].crop.y);
 }
 
 function clearOverlay(viewName) {

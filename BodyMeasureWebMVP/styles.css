@@ -487,6 +487,13 @@ select {
   min-height: 390px;
   border-radius: 20px;
   background: #101617;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.stage:active {
+  cursor: grabbing;
 }
 
 .photo-preview,
@@ -721,6 +728,12 @@ canvas {
 .quality-tips span {
   font-size: 0.8rem;
   line-height: 1.35;
+}
+
+.touch-hint {
+  color: var(--mint);
+  font-size: 0.78rem;
+  font-weight: 900;
 }
 
 .results {
