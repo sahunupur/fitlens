@@ -630,6 +630,7 @@ function estimateMeasurements(heightInches) {
   const hipWidth = front.hipWidthPx * scale;
   const chestWidth = shoulderWidth * chestWidthRatio(profile);
   const bustDepth = side.bustDepthPx * scale;
+  const chestDepth = bustDepth * chestDepthRatio(profile);
   const hipDepth = side.hipDepthPx * scale;
   const waistDepth = weightedAverage([
     [bustDepth * waistDepthRatio(profile), 0.45],
