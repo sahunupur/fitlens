@@ -1,4 +1,4 @@
-const CACHE_NAME = "fitlens-nupur-labs-v10";
+const CACHE_NAME = "fitlens-nupur-labs-v11";
 const APP_SHELL = [
   "./",
   "./index.html",

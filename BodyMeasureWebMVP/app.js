@@ -9,6 +9,7 @@ const views = {
     image: null,
     objectUrl: null,
     landmarks: null,
+    refs: null,
     stage: document.querySelector("#frontStage"),
     preview: document.querySelector("#frontPreview"),
     canvas: document.querySelector("#frontCanvas"),
@@ -21,6 +22,7 @@ const views = {
     image: null,
     objectUrl: null,
     landmarks: null,
+    refs: null,
     stage: document.querySelector("#sideStage"),
     preview: document.querySelector("#sidePreview"),
     canvas: document.querySelector("#sideCanvas"),
@@ -50,19 +52,27 @@ const landmarkIndex = {
   leftKnee: 25,
   rightKnee: 26,
   leftAnkle: 27,
-  rightAnkle: 28
+  rightAnkle: 28,
+  leftFoot: 31,
+  rightFoot: 32
 };
 
-const bones = [
-  ["leftShoulder", "rightShoulder"],
-  ["leftShoulder", "leftHip"],
-  ["rightShoulder", "rightHip"],
-  ["leftHip", "rightHip"],
-  ["leftHip", "leftKnee"],
-  ["leftKnee", "leftAnkle"],
-  ["rightHip", "rightKnee"],
-  ["rightKnee", "rightAnkle"]
-];
+const referenceLines = {
+  front: [
+    ["leftShoulder", "rightShoulder"],
+    ["leftWaist", "rightWaist"],
+    ["leftHip", "rightHip"],
+    ["leftKnee", "rightKnee"],
+    ["leftToe", "rightToe"],
+    ["topHead", "leftToe"],
+    ["topHead", "rightToe"]
+  ],
+  side: [
+    ["bustBack", "bustFront"],
+    ["hipBack", "hipFront"],
+    ["topHead", "toe"]
+  ]
+};
 
 async function bootPoseModel() {
   pose = new Pose({
@@ -129,6 +139,7 @@ async function handleImageSelection(event) {
     view.objectUrl = image.src;
     view.image = image;
     view.landmarks = null;
+    view.refs = null;
     view.crop = { zoom: 1, x: 0, y: 0 };
     view.empty.hidden = true;
     view.preview.src = view.objectUrl;
@@ -239,7 +250,7 @@ function handlePointerUp(event, viewName) {
 
 function findNearestJoint(viewName, event) {
   const view = views[viewName];
-  if (!view.landmarks) return null;
+  if (!view.refs) return null;
 
   const rect = view.canvas.getBoundingClientRect();
   const pointer = {
@@ -249,13 +260,12 @@ function findNearestJoint(viewName, event) {
   let closest = null;
   let closestDistance = Infinity;
 
-  for (const [jointName, index] of Object.entries(landmarkIndex)) {
-    const landmark = view.landmarks[index];
-    if (!isVisible(landmark)) continue;
+  for (const [jointName, ref] of Object.entries(view.refs)) {
+    if (!isVisible(ref)) continue;
 
     const jointPoint = {
-      x: landmark.x * rect.width,
-      y: landmark.y * rect.height
+      x: ref.x * rect.width,
+      y: ref.y * rect.height
     };
     const distance = Math.hypot(pointer.x - jointPoint.x, pointer.y - jointPoint.y);
     if (distance < closestDistance) {
@@ -270,10 +280,9 @@ function findNearestJoint(viewName, event) {
 function moveJoint(viewName, jointName, event) {
   const view = views[viewName];
   const rect = view.canvas.getBoundingClientRect();
-  const index = landmarkIndex[jointName];
-  const existing = view.landmarks[index] || {};
+  const existing = view.refs[jointName] || {};
 
-  view.landmarks[index] = {
+  view.refs[jointName] = {
     ...existing,
     x: clamp((event.clientX - rect.left) / Math.max(1, rect.width), 0, 1),
     y: clamp((event.clientY - rect.top) / Math.max(1, rect.height), 0, 1),
@@ -315,6 +324,7 @@ function setCrop(viewName, crop) {
 
 function invalidateAnalysis(viewName) {
   views[viewName].landmarks = null;
+  views[viewName].refs = null;
   resultsPanel.hidden = true;
   clearOverlay(viewName);
   applyCrop(viewName);
@@ -350,6 +360,8 @@ analyzeButton.addEventListener("click", async () => {
       return;
     }
 
+    views.front.refs = buildReferencePoints("front", views.front.landmarks);
+    views.side.refs = buildReferencePoints("side", views.side.landmarks);
     drawView("front");
     drawView("side");
     showEstimates(estimateMeasurements(height));
@@ -455,17 +467,19 @@ function drawView(viewName) {
 
   clearOverlay(viewName);
 
-  if (!view.landmarks) return;
+  if (!view.refs) return;
 
   const analysisImage = buildAnalysisCanvas(view);
   view.ctx.drawImage(analysisImage, 0, 0, view.canvas.width, view.canvas.height);
   view.ctx.lineWidth = Math.max(4, view.canvas.width * 0.008);
   view.ctx.strokeStyle = "#18a999";
   view.ctx.fillStyle = "#f28c28";
+  view.ctx.font = `${Math.max(11, view.canvas.width * 0.025)}px system-ui, sans-serif`;
+  view.ctx.textBaseline = "middle";
 
-  for (const [startName, endName] of bones) {
-    const start = point(startName, view.landmarks);
-    const end = point(endName, view.landmarks);
+  for (const [startName, endName] of referenceLines[viewName]) {
+    const start = view.refs[startName];
+    const end = view.refs[endName];
     if (!isVisible(start) || !isVisible(end)) continue;
 
     view.ctx.beginPath();
@@ -474,13 +488,17 @@ function drawView(viewName) {
     view.ctx.stroke();
   }
 
-  for (const name of Object.keys(landmarkIndex)) {
-    const p = point(name, view.landmarks);
+  for (const [name, p] of Object.entries(view.refs)) {
     if (!isVisible(p)) continue;
 
+    const x = p.x * view.canvas.width;
+    const y = p.y * view.canvas.height;
     view.ctx.beginPath();
-    view.ctx.arc(p.x * view.canvas.width, p.y * view.canvas.height, Math.max(5, view.canvas.width * 0.01), 0, Math.PI * 2);
+    view.ctx.arc(x, y, Math.max(6, view.canvas.width * 0.012), 0, Math.PI * 2);
     view.ctx.fill();
+    view.ctx.fillStyle = "rgba(21, 26, 29, 0.82)";
+    view.ctx.fillText(referenceLabel(name), x + 9, y);
+    view.ctx.fillStyle = "#f28c28";
   }
 }
 
@@ -495,50 +513,139 @@ function hasHumanPose(landmarks) {
   return required.filter(isVisible).length >= 2;
 }
 
+function buildReferencePoints(viewName, landmarks) {
+  const nose = point("nose", landmarks);
+  const leftShoulder = point("leftShoulder", landmarks);
+  const rightShoulder = point("rightShoulder", landmarks);
+  const leftHip = point("leftHip", landmarks);
+  const rightHip = point("rightHip", landmarks);
+  const leftKnee = point("leftKnee", landmarks);
+  const rightKnee = point("rightKnee", landmarks);
+  const leftAnkle = point("leftAnkle", landmarks);
+  const rightAnkle = point("rightAnkle", landmarks);
+  const leftFoot = point("leftFoot", landmarks) || leftAnkle;
+  const rightFoot = point("rightFoot", landmarks) || rightAnkle;
+  const shoulderMid = midpoint(leftShoulder, rightShoulder);
+  const hipMid = midpoint(leftHip, rightHip);
+  const shoulderWidth = Math.max(0.05, Math.abs(leftShoulder.x - rightShoulder.x));
+  const hipWidth = Math.max(0.05, Math.abs(leftHip.x - rightHip.x));
+  const topHead = {
+    x: visibleX(nose, shoulderMid.x),
+    y: Math.max(0, visibleY(nose, shoulderMid.y) - shoulderWidth * 0.34),
+    visibility: 1
+  };
+
+  if (viewName === "front") {
+    const waistY = shoulderMid.y + (hipMid.y - shoulderMid.y) * 0.58;
+    const waistWidth = weightedAverage([
+      [shoulderWidth * 0.64, 0.55],
+      [hipWidth * 0.62, 0.45]
+    ]);
+    const kneeY = average([visibleY(leftKnee, 0), visibleY(rightKnee, 0)].filter((value) => value > 0));
+    const kneeWidth = Math.max(Math.abs(visibleX(leftKnee, hipMid.x) - visibleX(rightKnee, hipMid.x)), hipWidth * 0.68);
+    const toeY = Math.max(visibleY(leftFoot, 0), visibleY(rightFoot, 0), visibleY(leftAnkle, 0), visibleY(rightAnkle, 0));
+
+    return {
+      topHead,
+      leftShoulder: visiblePoint(leftShoulder),
+      rightShoulder: visiblePoint(rightShoulder),
+      leftWaist: { x: hipMid.x - waistWidth / 2, y: waistY, visibility: 1 },
+      rightWaist: { x: hipMid.x + waistWidth / 2, y: waistY, visibility: 1 },
+      leftHip: visiblePoint(leftHip),
+      rightHip: visiblePoint(rightHip),
+      leftKnee: { x: hipMid.x - kneeWidth / 2, y: kneeY || hipMid.y + 0.24, visibility: 1 },
+      rightKnee: { x: hipMid.x + kneeWidth / 2, y: kneeY || hipMid.y + 0.24, visibility: 1 },
+      leftToe: { x: visibleX(leftFoot, visibleX(leftAnkle, hipMid.x - hipWidth / 2)), y: toeY || 0.96, visibility: 1 },
+      rightToe: { x: visibleX(rightFoot, visibleX(rightAnkle, hipMid.x + hipWidth / 2)), y: toeY || 0.96, visibility: 1 }
+    };
+  }
+
+  const torsoLeft = Math.min(
+    visibleX(leftShoulder, shoulderMid.x),
+    visibleX(rightShoulder, shoulderMid.x),
+    visibleX(leftHip, hipMid.x),
+    visibleX(rightHip, hipMid.x)
+  );
+  const torsoRight = Math.max(
+    visibleX(leftShoulder, shoulderMid.x),
+    visibleX(rightShoulder, shoulderMid.x),
+    visibleX(leftHip, hipMid.x),
+    visibleX(rightHip, hipMid.x)
+  );
+  const fallbackDepth = Math.max(0.08, Math.abs(torsoRight - torsoLeft), shoulderWidth * 0.52);
+  const centerX = (torsoLeft + torsoRight) / 2;
+  const bustY = shoulderMid.y + (hipMid.y - shoulderMid.y) * 0.28;
+  const hipY = hipMid.y;
+  const toe = {
+    x: average([
+      visibleX(leftFoot, visibleX(leftAnkle, centerX)),
+      visibleX(rightFoot, visibleX(rightAnkle, centerX))
+    ]),
+    y: Math.max(visibleY(leftFoot, 0), visibleY(rightFoot, 0), visibleY(leftAnkle, 0), visibleY(rightAnkle, 0), 0.96),
+    visibility: 1
+  };
+
+  return {
+    topHead,
+    bustBack: { x: centerX - fallbackDepth / 2, y: bustY, visibility: 1 },
+    bustFront: { x: centerX + fallbackDepth / 2, y: bustY, visibility: 1 },
+    hipBack: { x: centerX - fallbackDepth * 0.52, y: hipY, visibility: 1 },
+    hipFront: { x: centerX + fallbackDepth * 0.52, y: hipY, visibility: 1 },
+    toe
+  };
+}
+
+function referenceLabel(name) {
+  const labels = {
+    topHead: "head",
+    leftShoulder: "shoulder",
+    rightShoulder: "shoulder",
+    leftWaist: "waist",
+    rightWaist: "waist",
+    leftHip: "hip",
+    rightHip: "hip",
+    leftKnee: "knee",
+    rightKnee: "knee",
+    leftToe: "toe",
+    rightToe: "toe",
+    bustBack: "bust back",
+    bustFront: "bust front",
+    hipBack: "hip back",
+    hipFront: "hip front",
+    toe: "toe"
+  };
+  return labels[name] || name;
+}
+
 function estimateMeasurements(heightInches) {
   const profile = selectedProfile();
-  const front = extractPoseMetrics(views.front, "front");
-  const side = extractPoseMetrics(views.side, "side");
+  const front = extractReferenceMetrics(views.front);
+  const side = extractReferenceMetrics(views.side);
 
   const scale = heightInches / front.bodyPixelHeight;
   const calibrationBoost = calibrationSelect.value === "height" ? 0 : 1;
 
   const shoulderWidth = front.shoulderWidthPx * scale;
+  const waistWidth = front.waistWidthPx * scale;
   const hipWidth = front.hipWidthPx * scale;
-  const torsoWidth = weightedAverage([
-    [shoulderWidth * 0.82, 0.5],
-    [hipWidth * 0.78, 0.5]
-  ]);
-
-  const sideDepthRaw = side.bodyDepthPx * scale;
-  const frontDepthGuess = torsoWidth * profileDepthRatio(profile);
-  const torsoDepth = clamp(
-    weightedAverage([
-      [sideDepthRaw, 0.68],
-      [frontDepthGuess, 0.32]
-    ]),
-    torsoWidth * 0.42,
-    torsoWidth * 0.88
-  );
-
   const chestWidth = shoulderWidth * chestWidthRatio(profile);
-  const waistWidth = hipWidth * waistWidthRatio(profile);
-  const hipCircWidth = hipWidth;
-
-  const chestDepth = torsoDepth * chestDepthRatio(profile);
-  const waistDepth = torsoDepth * waistDepthRatio(profile);
-  const hipDepth = torsoDepth * hipDepthRatio(profile);
+  const bustDepth = side.bustDepthPx * scale;
+  const hipDepth = side.hipDepthPx * scale;
+  const waistDepth = weightedAverage([
+    [bustDepth * waistDepthRatio(profile), 0.45],
+    [hipDepth * 0.88, 0.55]
+  ]);
   const stomachWidth = weightedAverage([
-    [waistWidth, 0.55],
-    [hipCircWidth, 0.45]
+    [waistWidth, 0.62],
+    [hipWidth, 0.38]
   ]);
   const stomachDepth = weightedAverage([
-    [waistDepth, 0.45],
-    [hipDepth, 0.55]
+    [waistDepth, 0.58],
+    [hipDepth, 0.42]
   ]);
 
-  const leftInseam = segmentLength("leftHip", "leftAnkle", views.front) * scale * 0.92;
-  const rightInseam = segmentLength("rightHip", "rightAnkle", views.front) * scale * 0.92;
+  const leftInseam = refDistance(views.front, "leftHip", "leftToe") * scale * 0.84;
+  const rightInseam = refDistance(views.front, "rightHip", "rightToe") * scale * 0.84;
 
   const confidenceScore = confidenceFrom(front, side, calibrationBoost);
   const chest = ellipseCircumference(chestWidth, chestDepth);
@@ -561,51 +668,27 @@ function estimateMeasurements(heightInches) {
   };
 }
 
-function extractPoseMetrics(view, viewName) {
-  const landmarks = view.landmarks;
+function extractReferenceMetrics(view) {
+  const refs = view.refs;
   const canvas = view.canvas;
-  const leftShoulder = point("leftShoulder", landmarks);
-  const rightShoulder = point("rightShoulder", landmarks);
-  const leftHip = point("leftHip", landmarks);
-  const rightHip = point("rightHip", landmarks);
-  const leftAnkle = point("leftAnkle", landmarks);
-  const rightAnkle = point("rightAnkle", landmarks);
-  const nose = point("nose", landmarks);
 
-  const torsoPoints = [leftShoulder, rightShoulder, leftHip, rightHip];
-  const visibleTorsoPoints = torsoPoints.filter(isVisible);
-  if (viewName === "front" && visibleTorsoPoints.length < 4) {
-    throw new Error("Front photo needs visible left and right shoulders and hips.");
+  if (refs.leftShoulder) {
+    const toeY = Math.max(refs.leftToe.y, refs.rightToe.y);
+    return {
+      visibleCount: Object.values(refs).filter(isVisible).length,
+      bodyPixelHeight: Math.max(1, (toeY - refs.topHead.y) * canvas.height),
+      shoulderWidthPx: refDistance(view, "leftShoulder", "rightShoulder"),
+      waistWidthPx: refDistance(view, "leftWaist", "rightWaist"),
+      hipWidthPx: refDistance(view, "leftHip", "rightHip"),
+      kneeWidthPx: refDistance(view, "leftKnee", "rightKnee")
+    };
   }
-
-  if (viewName === "side" && visibleTorsoPoints.length < 2) {
-    throw new Error("Side photo needs visible shoulder and hip landmarks.");
-  }
-
-  const shoulderMid = midpoint(leftShoulder, rightShoulder);
-  const hipMid = midpoint(leftHip, rightHip);
-  const bottomY = Math.max(
-    visibleY(leftAnkle, hipMid.y),
-    visibleY(rightAnkle, hipMid.y),
-    hipMid.y
-  );
-  const topY = Math.min(visibleY(nose, shoulderMid.y), shoulderMid.y);
-  const bodyPixelHeight = Math.max(1, (bottomY - topY) * canvas.height);
 
   return {
-    visibleCount: [
-      leftShoulder,
-      rightShoulder,
-      leftHip,
-      rightHip,
-      leftAnkle,
-      rightAnkle,
-      nose
-    ].filter(isVisible).length,
-    bodyPixelHeight,
-    shoulderWidthPx: normalizedDistance(leftShoulder, rightShoulder, canvas),
-    hipWidthPx: normalizedDistance(leftHip, rightHip, canvas),
-    bodyDepthPx: horizontalSpan(torsoPoints, canvas)
+    visibleCount: Object.values(refs).filter(isVisible).length,
+    bodyPixelHeight: Math.max(1, (refs.toe.y - refs.topHead.y) * canvas.height),
+    bustDepthPx: refDistance(view, "bustBack", "bustFront"),
+    hipDepthPx: refDistance(view, "hipBack", "hipFront")
   };
 }
 
@@ -709,7 +792,7 @@ function ellipseCircumference(width, depth) {
 
 function confidenceFrom(front, side, calibrationBoost) {
   const landmarkScore = Math.min(7, front.visibleCount + side.visibleCount - 7);
-  const sideDepthScore = side.bodyDepthPx > front.hipWidthPx * 0.18 ? 1 : 0;
+  const sideDepthScore = side.bustDepthPx > front.hipWidthPx * 0.12 && side.hipDepthPx > front.hipWidthPx * 0.12 ? 1 : 0;
   return landmarkScore + sideDepthScore + calibrationBoost;
 }
 
@@ -721,6 +804,10 @@ function confidenceLabel(score) {
 
 function segmentLength(a, b, view) {
   return normalizedDistance(point(a, view.landmarks), point(b, view.landmarks), view.canvas);
+}
+
+function refDistance(view, a, b) {
+  return normalizedDistance(view.refs[a], view.refs[b], view.canvas);
 }
 
 function normalizedDistance(a, b, canvas) {
@@ -752,6 +839,14 @@ function setValue(id, value) {
 
 function point(name, landmarks) {
   return landmarks?.[landmarkIndex[name]];
+}
+
+function visiblePoint(point) {
+  return isVisible(point) ? { ...point, visibility: 1 } : { x: 0.5, y: 0.5, visibility: 1 };
+}
+
+function visibleX(point, fallback) {
+  return isVisible(point) ? point.x : fallback;
 }
 
 function isVisible(p) {
