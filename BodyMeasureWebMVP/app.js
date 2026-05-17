@@ -391,6 +391,8 @@ function drawView(viewName) {
 
   if (!view.landmarks) return;
 
+  const analysisImage = buildAnalysisCanvas(view);
+  view.ctx.drawImage(analysisImage, 0, 0, view.canvas.width, view.canvas.height);
   view.ctx.lineWidth = Math.max(4, view.canvas.width * 0.008);
   view.ctx.strokeStyle = "#18a999";
   view.ctx.fillStyle = "#f28c28";
@@ -473,13 +475,18 @@ function estimateMeasurements(heightInches) {
   const rightInseam = segmentLength("rightHip", "rightAnkle", views.front) * scale * 0.92;
 
   const confidenceScore = confidenceFrom(front, side, calibrationBoost);
+  const chest = ellipseCircumference(chestWidth, chestDepth);
+  const stomach = ellipseCircumference(stomachWidth, stomachDepth);
+  const waist = ellipseCircumference(waistWidth, waistDepth);
+  const hips = ellipseCircumference(hipCircWidth, hipDepth);
 
   return {
     profile,
-    chest: ellipseCircumference(chestWidth, chestDepth),
-    stomach: ellipseCircumference(stomachWidth, stomachDepth),
-    waist: ellipseCircumference(waistWidth, waistDepth),
-    hips: ellipseCircumference(hipCircWidth, hipDepth),
+    bodyShape: classifyBodyShape({ chest, waist, hips, shoulders: shoulderWidth }),
+    chest,
+    stomach,
+    waist,
+    hips,
     shoulders: shoulderWidth,
     inseam: average([leftInseam, rightInseam].filter((value) => value > 0)),
     underbust: ellipseCircumference(chestWidth * 0.9, chestDepth * 0.86),
@@ -542,6 +549,7 @@ function showEstimates(estimate) {
     estimate.profile === "female" ? "Bust / chest" : "Chest";
   specificLabel.textContent = estimate.profile === "female" ? "Underbust / band" : "Neck";
 
+  document.querySelector("#bodyShapeValue").textContent = estimate.bodyShape;
   setValue("chestValue", estimate.chest);
   setValue("stomachValue", estimate.stomach);
   setValue("waistValue", estimate.waist);
@@ -551,6 +559,39 @@ function showEstimates(estimate) {
   setValue("specificValue", estimate.profile === "female" ? estimate.underbust : estimate.neck);
   document.querySelector("#confidenceText").textContent = `Confidence: ${estimate.confidence}`;
   resultsPanel.hidden = false;
+}
+
+function classifyBodyShape({ chest, waist, hips, shoulders }) {
+  const upper = weightedAverage([
+    [chest, 0.78],
+    [shoulders * 2.25, 0.22]
+  ]);
+  const lower = hips;
+  const upperLowerDiff = Math.abs(upper - lower) / Math.max(upper, lower);
+  const waistToUpper = waist / upper;
+  const waistToLower = waist / lower;
+
+  if (upperLowerDiff <= 0.12 && waistToUpper <= 0.78 && waistToLower <= 0.78) {
+    return "Hourglass";
+  }
+
+  if (waist >= Math.min(upper, lower) * 0.94) {
+    return "Oval";
+  }
+
+  if (lower >= upper * 1.1) {
+    return "Triangle";
+  }
+
+  if (upper >= lower * 1.1) {
+    return "Inverted triangle";
+  }
+
+  if (waist >= Math.min(upper, lower) * 0.82) {
+    return "Rectangle";
+  }
+
+  return "Balanced";
 }
 
 function selectedProfile() {

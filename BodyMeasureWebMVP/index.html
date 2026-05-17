@@ -192,7 +192,7 @@
         <div class="quality-tips">
           <strong>Accuracy tips</strong>
           <span>Drag the photo with one finger. Pinch with two fingers to zoom. Non-human photos are rejected.</span>
-          <span class="touch-hint">For close measurements, FitLens needs a real body-measurement model, not only pose landmarks.</span>
+          <span class="touch-hint">Shape is estimated from chest-waist-hip ratios. True measurements need a specialized body-measurement AI model.</span>
         </div>
 
         <button class="primary" id="analyzeButton" disabled>
@@ -209,6 +209,7 @@
           <p class="confidence" id="confidenceText">Confidence: -</p>
         </div>
         <div class="metric-grid">
+          <article class="metric primary-metric"><span>Body shape</span><strong id="bodyShapeValue">-</strong></article>
           <article class="metric primary-metric"><span id="chestLabel">Bust / chest</span><strong id="chestValue">-</strong></article>
           <article class="metric"><span>Stomach</span><strong id="stomachValue">-</strong></article>
           <article class="metric"><span>Waist</span><strong id="waistValue">-</strong></article>
