@@ -7,14 +7,18 @@ const resultsPanel = document.querySelector("#results");
 const views = {
   front: {
     image: null,
+    objectUrl: null,
     landmarks: null,
+    stage: document.querySelector("#frontStage"),
     canvas: document.querySelector("#frontCanvas"),
     empty: document.querySelector("#frontEmpty"),
     status: document.querySelector("#frontStatus")
   },
   side: {
     image: null,
+    objectUrl: null,
     landmarks: null,
+    stage: document.querySelector("#sideStage"),
     canvas: document.querySelector("#sideCanvas"),
     empty: document.querySelector("#sideEmpty"),
     status: document.querySelector("#sideStatus")
@@ -91,9 +95,17 @@ async function handleImageSelection(event) {
   const image = new Image();
   image.onload = () => {
     const view = views[viewName];
+    if (view.objectUrl) {
+      URL.revokeObjectURL(view.objectUrl);
+    }
+
+    view.objectUrl = image.src;
     view.image = image;
     view.landmarks = null;
     view.empty.hidden = true;
+    view.stage.classList.add("has-photo");
+    view.stage.style.backgroundImage = `url("${view.objectUrl}")`;
+    view.stage.style.aspectRatio = `${image.naturalWidth} / ${image.naturalHeight}`;
     view.status.textContent = "Added";
     view.status.classList.add("ready");
     resultsPanel.hidden = true;
@@ -121,8 +133,13 @@ analyzeButton.addEventListener("click", async () => {
     views.front.landmarks = await detectPose(views.front.image);
     views.side.landmarks = await detectPose(views.side.image);
 
-    if (!views.front.landmarks || !views.side.landmarks) {
-      alert("Could not detect pose in both photos. Use clear full-body front and side images.");
+    if (!hasHumanPose(views.front.landmarks)) {
+      alert("No human body detected in the front photo. Please upload a clear full-body human photo.");
+      return;
+    }
+
+    if (!hasHumanPose(views.side.landmarks)) {
+      alert("No human body detected in the side photo. Please upload a clear full-body human photo.");
       return;
     }
 
@@ -173,7 +190,6 @@ function drawView(viewName) {
   if (!view.image) return;
 
   view.ctx.clearRect(0, 0, view.canvas.width, view.canvas.height);
-  view.ctx.drawImage(view.image, 0, 0, view.canvas.width, view.canvas.height);
 
   if (!view.landmarks) return;
 
@@ -200,6 +216,17 @@ function drawView(viewName) {
     view.ctx.arc(p.x * view.canvas.width, p.y * view.canvas.height, Math.max(5, view.canvas.width * 0.01), 0, Math.PI * 2);
     view.ctx.fill();
   }
+}
+
+function hasHumanPose(landmarks) {
+  if (!landmarks) return false;
+  const required = [
+    point("leftShoulder", landmarks),
+    point("rightShoulder", landmarks),
+    point("leftHip", landmarks),
+    point("rightHip", landmarks)
+  ];
+  return required.filter(isVisible).length >= 2;
 }
 
 function estimateMeasurements(heightInches) {

@@ -110,6 +110,14 @@ Photos are not uploaded to a FitLens server. The selected or captured front and 
 
 The app downloads the pose-detection library from a CDN, but this prototype does not send your selected image to an app backend or save user photos.
 
+## What Model Is Used?
+
+This prototype uses **MediaPipe Pose** from `@mediapipe/pose` in the browser. It detects human pose landmarks such as shoulders, hips, knees, and ankles.
+
+It does **not** detect exact body circumference, body fat, clothing thickness, or real 3D depth. If a user uploads a non-human photo, the app should reject it with a human-body-detection message instead of showing measurements.
+
+For genuinely close measurements, the next technical step is body segmentation plus a real calibration flow, or a trained model built from real photos paired with actual tape measurements.
+
 For a real App Store iOS app, you eventually need one of these:
 
 - A Mac with Xcode

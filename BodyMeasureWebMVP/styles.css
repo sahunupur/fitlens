@@ -485,20 +485,34 @@ select {
   background:
     linear-gradient(180deg, rgba(4, 20, 22, 0.1), rgba(4, 20, 22, 0.42)),
     #101617;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
 }
 
 canvas {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
-  min-height: 390px;
+  height: 100%;
+}
+
+.stage.has-photo {
+  min-height: 0;
+  background-color: #101617;
 }
 
 .compact-stage {
   min-height: 310px;
 }
 
+.compact-stage.has-photo {
+  min-height: 230px;
+}
+
 .compact-stage canvas {
-  min-height: 310px;
+  min-height: 0;
 }
 
 .empty {

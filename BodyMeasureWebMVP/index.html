@@ -109,7 +109,7 @@
                 <small>Front image</small>
               </label>
             </div>
-            <div class="stage compact-stage">
+            <div class="stage compact-stage" id="frontStage">
               <canvas id="frontCanvas"></canvas>
               <div class="empty" id="frontEmpty">
                 <div class="scan-frame" aria-hidden="true">
@@ -144,7 +144,7 @@
                 <small>Side image</small>
               </label>
             </div>
-            <div class="stage compact-stage">
+            <div class="stage compact-stage" id="sideStage">
               <canvas id="sideCanvas"></canvas>
               <div class="empty" id="sideEmpty">
                 <div class="scan-frame side-frame" aria-hidden="true">
@@ -159,7 +159,7 @@
 
         <div class="quality-tips">
           <strong>Accuracy tips</strong>
-          <span>Use fitted clothes, bright light, same distance, and include the selected reference object if possible.</span>
+          <span>Model: MediaPipe Pose landmarks. Non-human photos are rejected. For close measurements, a real calibration/tape workflow is still needed.</span>
         </div>
 
         <button class="primary" id="analyzeButton" disabled>
