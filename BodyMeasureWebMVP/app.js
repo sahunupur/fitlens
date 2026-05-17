@@ -1,16 +1,31 @@
-const photoInput = document.querySelector("#photoInput");
-const cameraInput = document.querySelector("#cameraInput");
 const heightInput = document.querySelector("#heightInput");
+const calibrationSelect = document.querySelector("#calibrationSelect");
 const analyzeButton = document.querySelector("#analyzeButton");
-const canvas = document.querySelector("#canvas");
-const emptyState = document.querySelector("#emptyState");
 const modelStatus = document.querySelector("#modelStatus");
-const results = document.querySelector("#results");
-const ctx = canvas.getContext("2d");
+const resultsPanel = document.querySelector("#results");
+
+const views = {
+  front: {
+    image: null,
+    landmarks: null,
+    canvas: document.querySelector("#frontCanvas"),
+    empty: document.querySelector("#frontEmpty"),
+    status: document.querySelector("#frontStatus")
+  },
+  side: {
+    image: null,
+    landmarks: null,
+    canvas: document.querySelector("#sideCanvas"),
+    empty: document.querySelector("#sideEmpty"),
+    status: document.querySelector("#sideStatus")
+  }
+};
+
+views.front.ctx = views.front.canvas.getContext("2d");
+views.side.ctx = views.side.canvas.getContext("2d");
 
 let pose;
-let currentImage;
-let latestLandmarks;
+let pendingPoseResolve;
 
 const landmarkIndex = {
   nose: 0,
@@ -49,46 +64,48 @@ async function bootPoseModel() {
   });
 
   pose.onResults((results) => {
-    latestLandmarks = results.poseLandmarks || null;
-    drawImageAndPose();
+    if (pendingPoseResolve) {
+      pendingPoseResolve(results.poseLandmarks || null);
+      pendingPoseResolve = null;
+    }
   });
 
   modelStatus.textContent = "Ready";
 }
 
-photoInput.addEventListener("change", handleImageSelection);
-cameraInput.addEventListener("change", handleImageSelection);
+document.querySelectorAll(".image-input").forEach((input) => {
+  input.addEventListener("change", handleImageSelection);
+});
 
 document.querySelectorAll("input[name='profile']").forEach((input) => {
-  input.addEventListener("change", () => {
-    if (latestLandmarks) {
-      const height = Number(heightInput.value);
-      if (Number.isFinite(height)) {
-        showEstimates(estimateMeasurements(latestLandmarks, height));
-      }
-    }
-  });
+  input.addEventListener("change", refreshResultsIfReady);
 });
+
+calibrationSelect.addEventListener("change", refreshResultsIfReady);
 
 async function handleImageSelection(event) {
   const file = event.target.files?.[0];
-  if (!file) return;
+  const viewName = event.target.dataset.view;
+  if (!file || !views[viewName]) return;
 
   const image = new Image();
   image.onload = () => {
-    currentImage = image;
-    latestLandmarks = null;
-    emptyState.hidden = true;
-    analyzeButton.disabled = false;
-    document.querySelector("#results").hidden = true;
-    resizeCanvasForImage(image);
-    drawImageAndPose();
+    const view = views[viewName];
+    view.image = image;
+    view.landmarks = null;
+    view.empty.hidden = true;
+    view.status.textContent = "Added";
+    view.status.classList.add("ready");
+    resultsPanel.hidden = true;
+    resizeCanvasForImage(view.canvas, image);
+    drawView(viewName);
+    updateAnalyzeState();
   };
   image.src = URL.createObjectURL(file);
 }
 
 analyzeButton.addEventListener("click", async () => {
-  if (!currentImage || !pose) return;
+  if (!views.front.image || !views.side.image || !pose) return;
 
   const height = Number(heightInput.value);
   if (!Number.isFinite(height) || height < 36 || height > 96) {
@@ -100,65 +117,155 @@ analyzeButton.addEventListener("click", async () => {
   analyzeButton.textContent = "Analyzing...";
   modelStatus.textContent = "Analyzing";
 
-  await pose.send({ image: currentImage });
+  try {
+    views.front.landmarks = await detectPose(views.front.image);
+    views.side.landmarks = await detectPose(views.side.image);
 
-  if (!latestLandmarks) {
-    alert("No body pose detected. Try a clearer full-body front photo.");
-  } else {
-    try {
-      showEstimates(estimateMeasurements(latestLandmarks, height));
-    } catch (error) {
-      alert(error.message || "Could not estimate measurements from this photo.");
+    if (!views.front.landmarks || !views.side.landmarks) {
+      alert("Could not detect pose in both photos. Use clear full-body front and side images.");
+      return;
     }
-  }
 
-  analyzeButton.disabled = false;
-  analyzeButton.textContent = "Estimate Measurements";
-  modelStatus.textContent = "Ready";
+    drawView("front");
+    drawView("side");
+    showEstimates(estimateMeasurements(height));
+  } catch (error) {
+    alert(error.message || "Could not estimate measurements from these photos.");
+  } finally {
+    analyzeButton.disabled = false;
+    analyzeButton.textContent = "Analyze Front + Side";
+    modelStatus.textContent = "Ready";
+  }
 });
 
-function resizeCanvasForImage(image) {
+function detectPose(image) {
+  return new Promise((resolve, reject) => {
+    pendingPoseResolve = resolve;
+    pose.send({ image }).catch((error) => {
+      pendingPoseResolve = null;
+      reject(error);
+    });
+  });
+}
+
+function updateAnalyzeState() {
+  analyzeButton.disabled = !(views.front.image && views.side.image);
+}
+
+function refreshResultsIfReady() {
+  if (views.front.landmarks && views.side.landmarks) {
+    const height = Number(heightInput.value);
+    if (Number.isFinite(height)) {
+      showEstimates(estimateMeasurements(height));
+    }
+  }
+}
+
+function resizeCanvasForImage(canvas, image) {
   const maxWidth = 1200;
   const scale = Math.min(1, maxWidth / image.naturalWidth);
   canvas.width = Math.round(image.naturalWidth * scale);
   canvas.height = Math.round(image.naturalHeight * scale);
 }
 
-function drawImageAndPose() {
-  if (!currentImage) return;
+function drawView(viewName) {
+  const view = views[viewName];
+  if (!view.image) return;
 
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(currentImage, 0, 0, canvas.width, canvas.height);
+  view.ctx.clearRect(0, 0, view.canvas.width, view.canvas.height);
+  view.ctx.drawImage(view.image, 0, 0, view.canvas.width, view.canvas.height);
 
-  if (!latestLandmarks) return;
+  if (!view.landmarks) return;
 
-  ctx.lineWidth = Math.max(4, canvas.width * 0.008);
-  ctx.strokeStyle = "#18a999";
-  ctx.fillStyle = "#f28c28";
+  view.ctx.lineWidth = Math.max(4, view.canvas.width * 0.008);
+  view.ctx.strokeStyle = "#18a999";
+  view.ctx.fillStyle = "#f28c28";
 
   for (const [startName, endName] of bones) {
-    const start = point(startName);
-    const end = point(endName);
+    const start = point(startName, view.landmarks);
+    const end = point(endName, view.landmarks);
     if (!isVisible(start) || !isVisible(end)) continue;
 
-    ctx.beginPath();
-    ctx.moveTo(start.x * canvas.width, start.y * canvas.height);
-    ctx.lineTo(end.x * canvas.width, end.y * canvas.height);
-    ctx.stroke();
+    view.ctx.beginPath();
+    view.ctx.moveTo(start.x * view.canvas.width, start.y * view.canvas.height);
+    view.ctx.lineTo(end.x * view.canvas.width, end.y * view.canvas.height);
+    view.ctx.stroke();
   }
 
   for (const name of Object.keys(landmarkIndex)) {
-    const p = point(name);
+    const p = point(name, view.landmarks);
     if (!isVisible(p)) continue;
 
-    ctx.beginPath();
-    ctx.arc(p.x * canvas.width, p.y * canvas.height, Math.max(5, canvas.width * 0.01), 0, Math.PI * 2);
-    ctx.fill();
+    view.ctx.beginPath();
+    view.ctx.arc(p.x * view.canvas.width, p.y * view.canvas.height, Math.max(5, view.canvas.width * 0.01), 0, Math.PI * 2);
+    view.ctx.fill();
   }
 }
 
-function estimateMeasurements(landmarks, heightInches) {
+function estimateMeasurements(heightInches) {
   const profile = selectedProfile();
+  const front = extractPoseMetrics(views.front, "front");
+  const side = extractPoseMetrics(views.side, "side");
+
+  const scale = heightInches / front.bodyPixelHeight;
+  const calibrationBoost = calibrationSelect.value === "height" ? 0 : 1;
+
+  const shoulderWidth = front.shoulderWidthPx * scale;
+  const hipWidth = front.hipWidthPx * scale;
+  const torsoWidth = weightedAverage([
+    [shoulderWidth * 0.82, 0.5],
+    [hipWidth * 0.78, 0.5]
+  ]);
+
+  const sideDepthRaw = side.bodyDepthPx * scale;
+  const frontDepthGuess = torsoWidth * profileDepthRatio(profile);
+  const torsoDepth = clamp(
+    weightedAverage([
+      [sideDepthRaw, 0.68],
+      [frontDepthGuess, 0.32]
+    ]),
+    torsoWidth * 0.42,
+    torsoWidth * 0.88
+  );
+
+  const chestWidth = shoulderWidth * chestWidthRatio(profile);
+  const waistWidth = hipWidth * waistWidthRatio(profile);
+  const hipCircWidth = hipWidth;
+
+  const chestDepth = torsoDepth * chestDepthRatio(profile);
+  const waistDepth = torsoDepth * waistDepthRatio(profile);
+  const hipDepth = torsoDepth * hipDepthRatio(profile);
+  const stomachWidth = weightedAverage([
+    [waistWidth, 0.55],
+    [hipCircWidth, 0.45]
+  ]);
+  const stomachDepth = weightedAverage([
+    [waistDepth, 0.45],
+    [hipDepth, 0.55]
+  ]);
+
+  const leftInseam = segmentLength("leftHip", "leftAnkle", views.front) * scale * 0.92;
+  const rightInseam = segmentLength("rightHip", "rightAnkle", views.front) * scale * 0.92;
+
+  const confidenceScore = confidenceFrom(front, side, calibrationBoost);
+
+  return {
+    profile,
+    chest: ellipseCircumference(chestWidth, chestDepth),
+    stomach: ellipseCircumference(stomachWidth, stomachDepth),
+    waist: ellipseCircumference(waistWidth, waistDepth),
+    hips: ellipseCircumference(hipCircWidth, hipDepth),
+    shoulders: shoulderWidth,
+    inseam: average([leftInseam, rightInseam].filter((value) => value > 0)),
+    underbust: ellipseCircumference(chestWidth * 0.9, chestDepth * 0.86),
+    neck: shoulderWidth * 0.78,
+    confidence: confidenceLabel(confidenceScore)
+  };
+}
+
+function extractPoseMetrics(view, viewName) {
+  const landmarks = view.landmarks;
+  const canvas = view.canvas;
   const leftShoulder = point("leftShoulder", landmarks);
   const rightShoulder = point("rightShoulder", landmarks);
   const leftHip = point("leftHip", landmarks);
@@ -167,18 +274,14 @@ function estimateMeasurements(landmarks, heightInches) {
   const rightAnkle = point("rightAnkle", landmarks);
   const nose = point("nose", landmarks);
 
-  const visibleCount = [
-    leftShoulder,
-    rightShoulder,
-    leftHip,
-    rightHip,
-    leftAnkle,
-    rightAnkle,
-    nose
-  ].filter(isVisible).length;
+  const torsoPoints = [leftShoulder, rightShoulder, leftHip, rightHip];
+  const visibleTorsoPoints = torsoPoints.filter(isVisible);
+  if (viewName === "front" && visibleTorsoPoints.length < 4) {
+    throw new Error("Front photo needs visible left and right shoulders and hips.");
+  }
 
-  if (visibleCount < 5) {
-    throw new Error("Not enough visible landmarks.");
+  if (viewName === "side" && visibleTorsoPoints.length < 2) {
+    throw new Error("Side photo needs visible shoulder and hip landmarks.");
   }
 
   const shoulderMid = midpoint(leftShoulder, rightShoulder);
@@ -190,31 +293,21 @@ function estimateMeasurements(landmarks, heightInches) {
   );
   const topY = Math.min(visibleY(nose, shoulderMid.y), shoulderMid.y);
   const bodyPixelHeight = Math.max(1, (bottomY - topY) * canvas.height);
-  const scale = heightInches / bodyPixelHeight;
-
-  const shoulderWidth = distance(leftShoulder, rightShoulder) * canvas.width * scale;
-  const hipWidth = distance(leftHip, rightHip) * canvas.width * scale;
-  const leftInseam = distance(leftHip, leftAnkle) * canvas.height * scale * 0.92;
-  const rightInseam = distance(rightHip, rightAnkle) * canvas.height * scale * 0.92;
-  const inseam = average([leftInseam, rightInseam].filter((value) => value > 0));
-
-  const multipliers = measurementMultipliers(profile);
-  const chest = shoulderWidth * multipliers.chest;
-  const waist = hipWidth * multipliers.waist;
-  const hips = hipWidth * multipliers.hips;
-  const stomach = (waist * 0.58) + (hips * 0.42);
 
   return {
-    profile,
-    chest,
-    stomach,
-    waist,
-    hips,
-    shoulders: shoulderWidth,
-    inseam,
-    underbust: chest * 0.86,
-    neck: shoulderWidth * 0.78,
-    confidence: visibleCount >= 7 ? "Medium demo estimate" : "Low demo estimate"
+    visibleCount: [
+      leftShoulder,
+      rightShoulder,
+      leftHip,
+      rightHip,
+      leftAnkle,
+      rightAnkle,
+      nose
+    ].filter(isVisible).length,
+    bodyPixelHeight,
+    shoulderWidthPx: normalizedDistance(leftShoulder, rightShoulder, canvas),
+    hipWidthPx: normalizedDistance(leftHip, rightHip, canvas),
+    bodyDepthPx: horizontalSpan(torsoPoints, canvas)
   };
 }
 
@@ -232,30 +325,100 @@ function showEstimates(estimate) {
   setValue("inseamValue", estimate.inseam);
   setValue("specificValue", estimate.profile === "female" ? estimate.underbust : estimate.neck);
   document.querySelector("#confidenceText").textContent = `Confidence: ${estimate.confidence}`;
-  results.hidden = false;
+  resultsPanel.hidden = false;
 }
 
 function selectedProfile() {
   return document.querySelector("input[name='profile']:checked")?.value || "neutral";
 }
 
-function measurementMultipliers(profile) {
-  if (profile === "male") {
-    return { chest: 2.28, waist: 1.74, hips: 1.96 };
-  }
+function chestWidthRatio(profile) {
+  if (profile === "male") return 1.03;
+  if (profile === "female") return 0.98;
+  return 1;
+}
 
-  if (profile === "female") {
-    return { chest: 2.15, waist: 1.65, hips: 2.08 };
-  }
+function waistWidthRatio(profile) {
+  if (profile === "male") return 0.86;
+  if (profile === "female") return 0.78;
+  return 0.82;
+}
 
-  return { chest: 2.2, waist: 1.69, hips: 2.02 };
+function profileDepthRatio(profile) {
+  if (profile === "male") return 0.58;
+  if (profile === "female") return 0.55;
+  return 0.56;
+}
+
+function chestDepthRatio(profile) {
+  if (profile === "male") return 1.04;
+  if (profile === "female") return 1.0;
+  return 1.02;
+}
+
+function waistDepthRatio(profile) {
+  if (profile === "male") return 0.88;
+  if (profile === "female") return 0.82;
+  return 0.85;
+}
+
+function hipDepthRatio(profile) {
+  if (profile === "male") return 0.98;
+  if (profile === "female") return 1.08;
+  return 1.02;
+}
+
+function ellipseCircumference(width, depth) {
+  const a = Math.max(width, depth) / 2;
+  const b = Math.min(width, depth) / 2;
+  if (!a || !b) return 0;
+  return Math.PI * (3 * (a + b) - Math.sqrt((3 * a + b) * (a + 3 * b)));
+}
+
+function confidenceFrom(front, side, calibrationBoost) {
+  const landmarkScore = Math.min(7, front.visibleCount + side.visibleCount - 7);
+  const sideDepthScore = side.bodyDepthPx > front.hipWidthPx * 0.18 ? 1 : 0;
+  return landmarkScore + sideDepthScore + calibrationBoost;
+}
+
+function confidenceLabel(score) {
+  if (score >= 7) return "Higher demo estimate";
+  if (score >= 5) return "Medium demo estimate";
+  return "Low demo estimate";
+}
+
+function segmentLength(a, b, view) {
+  return normalizedDistance(point(a, view.landmarks), point(b, view.landmarks), view.canvas);
+}
+
+function normalizedDistance(a, b, canvas) {
+  if (!isVisible(a) || !isVisible(b)) return 0;
+  const dx = (a.x - b.x) * canvas.width;
+  const dy = (a.y - b.y) * canvas.height;
+  return Math.hypot(dx, dy);
+}
+
+function horizontalSpan(points, canvas) {
+  const visible = points.filter(isVisible);
+  if (visible.length < 2) return 0;
+  const xs = visible.map((p) => p.x * canvas.width);
+  return Math.max(...xs) - Math.min(...xs);
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function weightedAverage(items) {
+  const totalWeight = items.reduce((sum, item) => sum + item[1], 0);
+  return items.reduce((sum, item) => sum + item[0] * item[1], 0) / totalWeight;
 }
 
 function setValue(id, value) {
   document.querySelector(`#${id}`).textContent = `${value.toFixed(1)} in`;
 }
 
-function point(name, landmarks = latestLandmarks) {
+function point(name, landmarks) {
   return landmarks?.[landmarkIndex[name]];
 }
 
@@ -273,13 +436,6 @@ function midpoint(a, b) {
     y: (a.y + b.y) / 2,
     visibility: Math.min(a.visibility ?? 1, b.visibility ?? 1)
   };
-}
-
-function distance(a, b) {
-  if (!isVisible(a) || !isVisible(b)) return 0;
-  const dx = a.x - b.x;
-  const dy = a.y - b.y;
-  return Math.hypot(dx, dy);
 }
 
 function average(values) {

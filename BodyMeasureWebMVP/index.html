@@ -28,7 +28,7 @@
         <div class="hero-copy">
           <p class="eyebrow">Smart fit scanner</p>
           <h2>Measure your look before you buy.</h2>
-          <p>Choose your profile, upload a full-body photo, and preview size estimates in seconds.</p>
+          <p>Use front and side photos for better chest, stomach, waist, and hip estimates.</p>
         </div>
         <div class="mini-figure" aria-hidden="true">
           <span class="head"></span>
@@ -65,7 +65,7 @@
           </label>
         </fieldset>
 
-        <div class="input-grid">
+        <div class="input-grid two-col">
           <label class="height-card">
             <span>Height</span>
             <div class="height-row">
@@ -73,37 +73,97 @@
               <strong>in</strong>
             </div>
           </label>
-        </div>
 
-        <div class="photo-actions">
-          <label class="photo-button camera-button">
-            <input id="cameraInput" type="file" accept="image/*" capture="environment" />
-            <span class="button-icon">⌁</span>
-            <strong>Camera</strong>
-            <small>Take a new photo</small>
-          </label>
-
-          <label class="photo-button upload-button">
-            <input id="photoInput" type="file" accept="image/*" />
-            <span class="button-icon">+</span>
-            <strong>Upload</strong>
-            <small>Choose from gallery</small>
+          <label class="height-card">
+            <span>Calibration</span>
+            <select id="calibrationSelect">
+              <option value="height">Height only</option>
+              <option value="card">Credit card in photo</option>
+              <option value="paper">A4 / letter paper</option>
+              <option value="phone">Phone as reference</option>
+            </select>
           </label>
         </div>
 
-        <section class="stage" aria-label="Photo preview">
-          <canvas id="canvas"></canvas>
-          <div class="empty" id="emptyState">
-            <div class="scan-frame" aria-hidden="true">
-              <span></span><span></span><span></span><span></span>
+        <div class="shot-grid">
+          <section class="shot-card" aria-label="Front photo">
+            <div class="shot-head">
+              <div>
+                <p class="eyebrow">Front view</p>
+                <h3>Body width</h3>
+              </div>
+              <span id="frontStatus">Needed</span>
             </div>
-            <h3>Ready for your photo</h3>
-            <p>Stand straight, keep ankles visible, and use fitted clothing for a better estimate.</p>
-          </div>
-        </section>
+            <div class="photo-actions">
+              <label class="photo-button camera-button">
+                <input class="image-input" data-view="front" type="file" accept="image/*" capture="environment" />
+                <span class="button-icon">C</span>
+                <strong>Camera</strong>
+                <small>Front photo</small>
+              </label>
+
+              <label class="photo-button upload-button">
+                <input class="image-input" data-view="front" type="file" accept="image/*" />
+                <span class="button-icon">+</span>
+                <strong>Upload</strong>
+                <small>Front image</small>
+              </label>
+            </div>
+            <div class="stage compact-stage">
+              <canvas id="frontCanvas"></canvas>
+              <div class="empty" id="frontEmpty">
+                <div class="scan-frame" aria-hidden="true">
+                  <span></span><span></span><span></span><span></span>
+                </div>
+                <h3>Add front photo</h3>
+                <p>Face camera, arms slightly away, ankles visible.</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="shot-card" aria-label="Side photo">
+            <div class="shot-head">
+              <div>
+                <p class="eyebrow">Side view</p>
+                <h3>Body depth</h3>
+              </div>
+              <span id="sideStatus">Needed</span>
+            </div>
+            <div class="photo-actions">
+              <label class="photo-button camera-button">
+                <input class="image-input" data-view="side" type="file" accept="image/*" capture="environment" />
+                <span class="button-icon">C</span>
+                <strong>Camera</strong>
+                <small>Side photo</small>
+              </label>
+
+              <label class="photo-button upload-button">
+                <input class="image-input" data-view="side" type="file" accept="image/*" />
+                <span class="button-icon">+</span>
+                <strong>Upload</strong>
+                <small>Side image</small>
+              </label>
+            </div>
+            <div class="stage compact-stage">
+              <canvas id="sideCanvas"></canvas>
+              <div class="empty" id="sideEmpty">
+                <div class="scan-frame side-frame" aria-hidden="true">
+                  <span></span><span></span><span></span><span></span>
+                </div>
+                <h3>Add side photo</h3>
+                <p>Turn sideways, stand tall, keep full body visible.</p>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="quality-tips">
+          <strong>Accuracy tips</strong>
+          <span>Use fitted clothes, bright light, same distance, and include the selected reference object if possible.</span>
+        </div>
 
         <button class="primary" id="analyzeButton" disabled>
-          <span>Estimate Measurements</span>
+          <span>Analyze Front + Side</span>
         </button>
       </section>
 
@@ -129,11 +189,11 @@
       <section class="guidance">
         <div>
           <strong>Best results</strong>
-          <span>Front photo, bright light, full body visible.</span>
+          <span>Front + side photos, bright light, full body visible.</span>
         </div>
         <div>
           <strong>Privacy-first demo</strong>
-          <span>Your photo stays on this device; no account or upload server.</span>
+          <span>Your photos stay on this device; no account or upload server.</span>
         </div>
       </section>
 

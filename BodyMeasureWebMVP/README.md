@@ -7,10 +7,12 @@ It uses:
 - HTML/CSS/JavaScript
 - MediaPipe Pose in the browser
 - iPhone camera/photo picker through Safari
-- Rough measurement math from pose landmarks and entered height
+- Front and side photo capture for better body width and depth estimates
+- Rough measurement math from pose landmarks, entered height, profile, and side-view depth
 - Installable PWA support for iPhone and Android
 - Polished mobile app-style UI under the **FitLens by Nupur Labs** brand
 - Female, male, and neutral body-profile modes
+- Calibration mode selector for height-only, credit card, paper, or phone reference workflows
 - Separate **Camera** and **Upload** actions so users can take a photo or choose from gallery
 
 ## Can This Run On Android?
@@ -34,7 +36,7 @@ Good free options:
 3. Drag the zip/folder onto the page.
 4. Netlify gives you an HTTPS URL.
 5. Open that URL on your iPhone in Safari.
-6. Tap **Camera** or **Upload**.
+6. Add both **Front view** and **Side view** photos.
 
 ## Option 2: GitHub Pages
 
@@ -104,7 +106,7 @@ This is not a native App Store app yet. It is a prototype you can test on your i
 
 ## Where Do Photos Go?
 
-Photos are not uploaded to a FitLens server. The selected or captured image is loaded into the browser with a temporary local object URL, drawn on the page canvas, and analyzed in the browser with MediaPipe Pose.
+Photos are not uploaded to a FitLens server. The selected or captured front and side images are loaded into the browser with temporary local object URLs, drawn on the page canvases, and analyzed in the browser with MediaPipe Pose.
 
 The app downloads the pose-detection library from a CDN, but this prototype does not send your selected image to an app backend or save user photos.
 
