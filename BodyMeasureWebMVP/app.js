@@ -13,7 +13,9 @@ const views = {
     preview: document.querySelector("#frontPreview"),
     canvas: document.querySelector("#frontCanvas"),
     empty: document.querySelector("#frontEmpty"),
-    status: document.querySelector("#frontStatus")
+    status: document.querySelector("#frontStatus"),
+    cropTools: document.querySelector(".crop-tools[data-view='front']"),
+    crop: { zoom: 1, x: 0, y: 0 }
   },
   side: {
     image: null,
@@ -23,7 +25,9 @@ const views = {
     preview: document.querySelector("#sidePreview"),
     canvas: document.querySelector("#sideCanvas"),
     empty: document.querySelector("#sideEmpty"),
-    status: document.querySelector("#sideStatus")
+    status: document.querySelector("#sideStatus"),
+    cropTools: document.querySelector(".crop-tools[data-view='side']"),
+    crop: { zoom: 1, x: 0, y: 0 }
   }
 };
 
@@ -83,6 +87,14 @@ document.querySelectorAll(".image-input").forEach((input) => {
   input.addEventListener("change", handleImageSelection);
 });
 
+document.querySelectorAll(".crop-input").forEach((input) => {
+  input.addEventListener("input", handleCropChange);
+});
+
+document.querySelectorAll(".crop-reset").forEach((button) => {
+  button.addEventListener("click", resetCrop);
+});
+
 document.querySelectorAll("input[name='profile']").forEach((input) => {
   input.addEventListener("change", refreshResultsIfReady);
 });
@@ -104,9 +116,13 @@ async function handleImageSelection(event) {
     view.objectUrl = image.src;
     view.image = image;
     view.landmarks = null;
+    view.crop = { zoom: 1, x: 0, y: 0 };
     view.empty.hidden = true;
     view.preview.src = view.objectUrl;
     view.preview.hidden = false;
+    view.cropTools.hidden = false;
+    resetCropInputs(viewName);
+    applyCrop(viewName);
     view.stage.classList.add("has-photo");
     view.stage.style.aspectRatio = `${image.naturalWidth} / ${image.naturalHeight}`;
     view.status.textContent = "Added";
@@ -117,6 +133,32 @@ async function handleImageSelection(event) {
     updateAnalyzeState();
   };
   image.src = URL.createObjectURL(file);
+}
+
+function handleCropChange(event) {
+  const tools = event.target.closest(".crop-tools");
+  const viewName = tools?.dataset.view;
+  const view = views[viewName];
+  if (!view) return;
+
+  view.crop[event.target.dataset.control] = Number(event.target.value);
+  view.landmarks = null;
+  resultsPanel.hidden = true;
+  clearOverlay(viewName);
+  applyCrop(viewName);
+}
+
+function resetCrop(event) {
+  const viewName = event.currentTarget.dataset.view;
+  const view = views[viewName];
+  if (!view) return;
+
+  view.crop = { zoom: 1, x: 0, y: 0 };
+  view.landmarks = null;
+  resultsPanel.hidden = true;
+  resetCropInputs(viewName);
+  clearOverlay(viewName);
+  applyCrop(viewName);
 }
 
 analyzeButton.addEventListener("click", async () => {
@@ -133,8 +175,11 @@ analyzeButton.addEventListener("click", async () => {
   modelStatus.textContent = "Analyzing";
 
   try {
-    views.front.landmarks = await detectPose(views.front.image);
-    views.side.landmarks = await detectPose(views.side.image);
+    const frontAnalysisImage = buildAnalysisCanvas(views.front);
+    const sideAnalysisImage = buildAnalysisCanvas(views.side);
+
+    views.front.landmarks = await detectPose(frontAnalysisImage);
+    views.side.landmarks = await detectPose(sideAnalysisImage);
 
     if (!hasHumanPose(views.front.landmarks)) {
       alert("No human body detected in the front photo. Please upload a clear full-body human photo.");
@@ -188,11 +233,61 @@ function resizeCanvasForImage(canvas, image) {
   canvas.height = Math.round(image.naturalHeight * scale);
 }
 
+function applyCrop(viewName) {
+  const view = views[viewName];
+  const { zoom, x, y } = view.crop;
+  view.preview.style.transform = `translate(${x}%, ${y}%) scale(${zoom})`;
+}
+
+function resetCropInputs(viewName) {
+  const tools = views[viewName].cropTools;
+  tools.querySelector("[data-control='zoom']").value = "1";
+  tools.querySelector("[data-control='x']").value = "0";
+  tools.querySelector("[data-control='y']").value = "0";
+}
+
+function clearOverlay(viewName) {
+  const view = views[viewName];
+  view.ctx.clearRect(0, 0, view.canvas.width, view.canvas.height);
+}
+
+function buildAnalysisCanvas(view) {
+  const output = document.createElement("canvas");
+  output.width = view.canvas.width;
+  output.height = view.canvas.height;
+
+  const outputCtx = output.getContext("2d");
+  const fit = containRect(view.image.naturalWidth, view.image.naturalHeight, output.width, output.height);
+  const { zoom, x, y } = view.crop;
+  const drawWidth = fit.width * zoom;
+  const drawHeight = fit.height * zoom;
+  const offsetX = fit.x + (fit.width - drawWidth) / 2 + (x / 100) * fit.width;
+  const offsetY = fit.y + (fit.height - drawHeight) / 2 + (y / 100) * fit.height;
+
+  outputCtx.fillStyle = "#101617";
+  outputCtx.fillRect(0, 0, output.width, output.height);
+  outputCtx.drawImage(view.image, offsetX, offsetY, drawWidth, drawHeight);
+
+  return output;
+}
+
+function containRect(sourceWidth, sourceHeight, targetWidth, targetHeight) {
+  const scale = Math.min(targetWidth / sourceWidth, targetHeight / sourceHeight);
+  const width = sourceWidth * scale;
+  const height = sourceHeight * scale;
+  return {
+    x: (targetWidth - width) / 2,
+    y: (targetHeight - height) / 2,
+    width,
+    height
+  };
+}
+
 function drawView(viewName) {
   const view = views[viewName];
   if (!view.image) return;
 
-  view.ctx.clearRect(0, 0, view.canvas.width, view.canvas.height);
+  clearOverlay(viewName);
 
   if (!view.landmarks) return;
 

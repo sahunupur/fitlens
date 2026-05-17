@@ -37,6 +37,10 @@ select {
   font: inherit;
 }
 
+input[type="range"] {
+  accent-color: var(--mint);
+}
+
 .app-shell {
   width: min(100%, 520px);
   margin: 0 auto;
@@ -497,6 +501,8 @@ canvas {
 .photo-preview {
   object-fit: contain;
   z-index: 0;
+  transform-origin: center;
+  transition: transform 120ms ease-out;
 }
 
 .photo-preview[hidden] {
@@ -666,6 +672,45 @@ canvas {
   border-radius: 18px;
   background: rgba(238, 247, 245, 0.92);
   color: var(--muted);
+}
+
+.crop-tools {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.crop-tools[hidden] {
+  display: none;
+}
+
+.crop-tools label {
+  display: grid;
+  gap: 6px;
+}
+
+.crop-tools label span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.crop-tools input[type="range"] {
+  width: 100%;
+}
+
+.ghost-button {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--ink);
+  font-weight: 900;
 }
 
 .quality-tips strong {
