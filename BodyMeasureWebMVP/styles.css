@@ -662,9 +662,6 @@ canvas {
   font-size: 1rem;
   font-weight: 950;
   box-shadow: 0 16px 30px rgba(12, 124, 113, 0.23);
-  position: sticky;
-  bottom: max(10px, env(safe-area-inset-bottom));
-  z-index: 2;
 }
 
 .primary:disabled {
