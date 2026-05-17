@@ -451,6 +451,10 @@ canvas {
   text-align: center;
 }
 
+.empty[hidden] {
+  display: none;
+}
+
 .empty h3 {
   font-size: 1.25rem;
 }

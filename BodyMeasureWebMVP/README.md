@@ -102,6 +102,12 @@ That Android path is realistic on Windows. Native iPhone builds are the hard par
 
 This is not a native App Store app yet. It is a prototype you can test on your iPhone or Android phone today from Windows.
 
+## Where Do Photos Go?
+
+Photos are not uploaded to a FitLens server. The selected or captured image is loaded into the browser with a temporary local object URL, drawn on the page canvas, and analyzed in the browser with MediaPipe Pose.
+
+The app downloads the pose-detection library from a CDN, but this prototype does not send your selected image to an app backend or save user photos.
+
 For a real App Store iOS app, you eventually need one of these:
 
 - A Mac with Xcode
