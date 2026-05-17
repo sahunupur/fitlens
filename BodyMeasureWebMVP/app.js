@@ -10,6 +10,7 @@ const views = {
     objectUrl: null,
     landmarks: null,
     stage: document.querySelector("#frontStage"),
+    preview: document.querySelector("#frontPreview"),
     canvas: document.querySelector("#frontCanvas"),
     empty: document.querySelector("#frontEmpty"),
     status: document.querySelector("#frontStatus")
@@ -19,6 +20,7 @@ const views = {
     objectUrl: null,
     landmarks: null,
     stage: document.querySelector("#sideStage"),
+    preview: document.querySelector("#sidePreview"),
     canvas: document.querySelector("#sideCanvas"),
     empty: document.querySelector("#sideEmpty"),
     status: document.querySelector("#sideStatus")
@@ -103,8 +105,9 @@ async function handleImageSelection(event) {
     view.image = image;
     view.landmarks = null;
     view.empty.hidden = true;
+    view.preview.src = view.objectUrl;
+    view.preview.hidden = false;
     view.stage.classList.add("has-photo");
-    view.stage.style.backgroundImage = `url("${view.objectUrl}")`;
     view.stage.style.aspectRatio = `${image.naturalWidth} / ${image.naturalHeight}`;
     view.status.textContent = "Added";
     view.status.classList.add("ready");
