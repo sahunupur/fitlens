@@ -37,8 +37,8 @@ views.side.ctx = views.side.canvas.getContext("2d");
 let pose;
 let pendingPoseResolve;
 const gestureState = {
-  front: { pointers: new Map(), startCrop: null, startCenter: null, startDistance: null },
-  side: { pointers: new Map(), startCrop: null, startCenter: null, startDistance: null }
+  front: { pointers: new Map(), startCrop: null, startCenter: null, startDistance: null, dragJoint: null },
+  side: { pointers: new Map(), startCrop: null, startCenter: null, startDistance: null, dragJoint: null }
 };
 
 const landmarkIndex = {
@@ -176,6 +176,13 @@ function handlePointerDown(event, viewName) {
   view.stage.setPointerCapture(event.pointerId);
 
   const state = gestureState[viewName];
+  const nearestJoint = findNearestJoint(viewName, event);
+  if (nearestJoint) {
+    state.dragJoint = nearestJoint;
+    state.pointers.clear();
+    return;
+  }
+
   state.pointers.set(event.pointerId, pointerPosition(event));
   state.startCrop = { ...view.crop };
   state.startCenter = pointerCenter(state.pointers);
@@ -185,9 +192,16 @@ function handlePointerDown(event, viewName) {
 function handlePointerMove(event, viewName) {
   const view = views[viewName];
   const state = gestureState[viewName];
-  if (!view.image || !state.pointers.has(event.pointerId)) return;
+  if (!view.image) return;
 
   event.preventDefault();
+
+  if (state.dragJoint) {
+    moveJoint(viewName, state.dragJoint, event);
+    return;
+  }
+
+  if (!state.pointers.has(event.pointerId)) return;
   state.pointers.set(event.pointerId, pointerPosition(event));
 
   const center = pointerCenter(state.pointers);
@@ -209,6 +223,11 @@ function handlePointerMove(event, viewName) {
 
 function handlePointerUp(event, viewName) {
   const state = gestureState[viewName];
+  if (state.dragJoint) {
+    state.dragJoint = null;
+    return;
+  }
+
   state.pointers.delete(event.pointerId);
 
   if (state.pointers.size > 0) {
@@ -216,6 +235,53 @@ function handlePointerUp(event, viewName) {
     state.startCenter = pointerCenter(state.pointers);
     state.startDistance = pointerDistance(state.pointers);
   }
+}
+
+function findNearestJoint(viewName, event) {
+  const view = views[viewName];
+  if (!view.landmarks) return null;
+
+  const rect = view.canvas.getBoundingClientRect();
+  const pointer = {
+    x: event.clientX - rect.left,
+    y: event.clientY - rect.top
+  };
+  let closest = null;
+  let closestDistance = Infinity;
+
+  for (const [jointName, index] of Object.entries(landmarkIndex)) {
+    const landmark = view.landmarks[index];
+    if (!isVisible(landmark)) continue;
+
+    const jointPoint = {
+      x: landmark.x * rect.width,
+      y: landmark.y * rect.height
+    };
+    const distance = Math.hypot(pointer.x - jointPoint.x, pointer.y - jointPoint.y);
+    if (distance < closestDistance) {
+      closestDistance = distance;
+      closest = jointName;
+    }
+  }
+
+  return closestDistance <= 34 ? closest : null;
+}
+
+function moveJoint(viewName, jointName, event) {
+  const view = views[viewName];
+  const rect = view.canvas.getBoundingClientRect();
+  const index = landmarkIndex[jointName];
+  const existing = view.landmarks[index] || {};
+
+  view.landmarks[index] = {
+    ...existing,
+    x: clamp((event.clientX - rect.left) / Math.max(1, rect.width), 0, 1),
+    y: clamp((event.clientY - rect.top) / Math.max(1, rect.height), 0, 1),
+    visibility: 1
+  };
+
+  drawView(viewName);
+  refreshResultsIfReady();
 }
 
 function pointerPosition(event) {

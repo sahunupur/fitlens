@@ -518,6 +518,7 @@ canvas {
 
 canvas {
   z-index: 1;
+  pointer-events: none;
 }
 
 .stage.has-photo {
