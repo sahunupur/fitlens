@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSCameraUsageDescription</key>
+	<string>This demo uses the camera to capture a full-body photo for local body landmark detection.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This demo lets you select a photo for local body landmark detection.</string>
+</dict>
+</plist>

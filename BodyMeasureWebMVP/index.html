@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>FitLens by Nupur Labs</title>
+    <meta name="theme-color" content="#0b7a75" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="FitLens" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="brand-bar">
+        <div class="brand-mark" aria-hidden="true">
+          <span></span>
+        </div>
+        <div>
+          <p>Nupur Labs</p>
+          <h1>FitLens</h1>
+        </div>
+        <div class="status" id="modelStatus">Loading</div>
+      </header>
+
+      <section class="hero-panel">
+        <div class="hero-copy">
+          <p class="eyebrow">Smart fit scanner</p>
+          <h2>Measure your look before you buy.</h2>
+          <p>Choose your profile, upload a full-body photo, and preview size estimates in seconds.</p>
+        </div>
+        <div class="mini-figure" aria-hidden="true">
+          <span class="head"></span>
+          <span class="shoulders"></span>
+          <span class="torso"></span>
+          <span class="hip"></span>
+          <span class="leg left"></span>
+          <span class="leg right"></span>
+        </div>
+      </section>
+
+      <section class="capture-card">
+        <div class="section-title">
+          <div>
+            <p class="eyebrow">Profile setup</p>
+            <h2>Your scan details</h2>
+          </div>
+          <span>Step 1</span>
+        </div>
+
+        <fieldset class="profile-toggle" aria-label="Body profile">
+          <legend>Body profile</legend>
+          <label>
+            <input type="radio" name="profile" value="female" checked />
+            <span>Female</span>
+          </label>
+          <label>
+            <input type="radio" name="profile" value="male" />
+            <span>Male</span>
+          </label>
+          <label>
+            <input type="radio" name="profile" value="neutral" />
+            <span>Neutral</span>
+          </label>
+        </fieldset>
+
+        <div class="input-grid">
+          <label class="height-card">
+            <span>Height</span>
+            <div class="height-row">
+              <input id="heightInput" inputmode="decimal" type="number" min="36" max="96" value="66" />
+              <strong>in</strong>
+            </div>
+          </label>
+        </div>
+
+        <div class="photo-actions">
+          <label class="photo-button camera-button">
+            <input id="cameraInput" type="file" accept="image/*" capture="environment" />
+            <span class="button-icon">⌁</span>
+            <strong>Camera</strong>
+            <small>Take a new photo</small>
+          </label>
+
+          <label class="photo-button upload-button">
+            <input id="photoInput" type="file" accept="image/*" />
+            <span class="button-icon">+</span>
+            <strong>Upload</strong>
+            <small>Choose from gallery</small>
+          </label>
+        </div>
+
+        <section class="stage" aria-label="Photo preview">
+          <canvas id="canvas"></canvas>
+          <div class="empty" id="emptyState">
+            <div class="scan-frame" aria-hidden="true">
+              <span></span><span></span><span></span><span></span>
+            </div>
+            <h3>Ready for your photo</h3>
+            <p>Stand straight, keep ankles visible, and use fitted clothing for a better estimate.</p>
+          </div>
+        </section>
+
+        <button class="primary" id="analyzeButton" disabled>
+          <span>Estimate Measurements</span>
+        </button>
+      </section>
+
+      <section class="results" id="results" hidden>
+        <div class="results-head">
+          <div>
+            <p class="eyebrow">Fit profile</p>
+            <h2>Estimated Results</h2>
+          </div>
+          <p class="confidence" id="confidenceText">Confidence: -</p>
+        </div>
+        <div class="metric-grid">
+          <article class="metric primary-metric"><span id="chestLabel">Bust / chest</span><strong id="chestValue">-</strong></article>
+          <article class="metric"><span>Stomach</span><strong id="stomachValue">-</strong></article>
+          <article class="metric"><span>Waist</span><strong id="waistValue">-</strong></article>
+          <article class="metric"><span>Hips</span><strong id="hipsValue">-</strong></article>
+          <article class="metric"><span>Shoulders</span><strong id="shouldersValue">-</strong></article>
+          <article class="metric"><span>Inseam</span><strong id="inseamValue">-</strong></article>
+          <article class="metric profile-specific"><span id="specificLabel">Underbust / band</span><strong id="specificValue">-</strong></article>
+        </div>
+      </section>
+
+      <section class="guidance">
+        <div>
+          <strong>Best results</strong>
+          <span>Front photo, bright light, full body visible.</span>
+        </div>
+        <div>
+          <strong>Privacy-first demo</strong>
+          <span>Runs in your browser; no account needed.</span>
+        </div>
+      </section>
+
+      <p class="note">Estimates only. Not for medical, tailoring, or bra-fitting decisions.</p>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
