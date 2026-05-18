@@ -652,7 +652,7 @@ function estimateMeasurements(heightInches) {
   const chest = ellipseCircumference(chestWidth, chestDepth);
   const stomach = ellipseCircumference(stomachWidth, stomachDepth);
   const waist = ellipseCircumference(waistWidth, waistDepth);
-  const hips = ellipseCircumference(hipCircWidth, hipDepth);
+  const hips = ellipseCircumference(hipWidth, hipDepth);
 
   return {
     profile,
